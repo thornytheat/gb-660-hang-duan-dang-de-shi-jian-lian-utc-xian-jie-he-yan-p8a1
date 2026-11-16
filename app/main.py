@@ -1,8 +1,9 @@
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from app.config import APP_VERSION
+from app.errors import DomainError
 from app.store import init_db
 from app.modules.m1_legs.handler import router as m1_legs_router
 from app.modules.m2_airports.handler import router as m2_airports_router
@@ -15,6 +16,12 @@ app = FastAPI(title="航班时刻运行台", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.state.templates = Jinja2Templates(directory="app/templates")
 app.state.version = APP_VERSION
+
+
+@app.exception_handler(DomainError)
+def domain_error_handler(request: Request, exc: DomainError):
+    return JSONResponse(status_code=exc.status,
+                        content={"detail": {"code": exc.code, "message": exc.message}})
 app.include_router(m1_legs_router)
 app.include_router(m2_airports_router)
 app.include_router(m3_localtime_router)
@@ -25,6 +32,10 @@ app.include_router(m6_batches_router)
 @app.on_event("startup")
 def startup():
     init_db()
+    from app.modules.m6_batches.ledger import init_ledger
+    from app.modules.m6_batches.vault import init_vault
+    init_ledger()
+    init_vault()
 
 @app.get("/", include_in_schema=False)
 def home():

@@ -1,27 +1,65 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="kpis">
-  <div class="kpi"><b>衔接项</b><strong>1</strong><small>条</small></div>
-  <div class="kpi"><b>通过</b><strong>0</strong><small>条</small></div>
-  <div class="kpi"><b>隔离</b><strong>3</strong><small>条</small></div>
-  <div class="kpi"><b>规则版</b><strong>1.6</strong><small>v</small></div>
+  <div class="kpi"><b>待处理</b><strong id="kpi-pending">{{ rows.snapshot.counts.pending }}</strong><small>单</small></div>
+  <div class="kpi"><b>隔离留存</b><strong id="kpi-retained">{{ rows.snapshot.counts.retained }}</strong><small>单</small></div>
+  <div class="kpi"><b>已清除</b><strong id="kpi-cleared">{{ rows.snapshot.counts.cleared }}</strong><small>单</small></div>
+  <div class="kpi"><b>航段守恒差异</b><strong id="kpi-diff">
+    {% set ns = namespace(diff=0) %}{% for b in rows.snapshot.batches %}{% set ns.diff = ns.diff + b.conservation.difference %}{% endfor %}{{ ns.diff }}
+  </strong><small>条</small></div>
 </section>
 <div class="grid grid--split">
   <section class="panel">
-    <div class="panel__head"><h2>批次导出</h2><span class="state state--ok">通过</span></div>
+    <div class="panel__head"><h2>批次与航链（业务数据）</h2><span class="panel__meta">已清除行程不显示</span></div>
     <div class="panel__body panel__body--scroll">
-      <table class="ledger"><thead><tr><th>序号</th><th>业务键</th><th>状态</th><th class="num">值</th></tr></thead>
-      <tbody>{% for row in rows %}<tr><td class="num">{{ loop.index }}</td><td>{{ row.key }}</td><td>{{ row.status }}</td><td class="num">{{ row.value }}</td></tr>{% endfor %}</tbody></table>
+      <table class="ledger"><thead><tr><th>批次 run_id</th><th>航段</th><th>有效</th><th>异常</th><th>争议</th><th class="num">守恒差异</th></tr></thead>
+      <tbody>
+      {% for b in rows.snapshot.batches %}
+        <tr><td>{{ b.run_id }}</td><td class="num">{{ b.leg_rows }}</td><td class="num">{{ b.valid_legs }}</td><td class="num">{{ b.bad_legs }}</td><td class="num">{{ b.disputed_legs }}</td><td class="num">{{ b.conservation.difference }}</td></tr>
+      {% else %}
+        <tr><td colspan="6">暂无批次，点击「运行样例」接入真实航链</td></tr>
+      {% endfor %}
+      </tbody></table>
     </div>
   </section>
+
   <section class="panel panel--evidence">
-    <div class="panel__head"><h2>证据</h2><span class="panel__meta">7 条</span></div>
-    <div class="panel__body"><div class="evidence"><b>RUN-660-6</b><span>LINE 7</span><code>/api/reconcile</code></div><pre id="result">等待运行</pre></div>
+    <div class="panel__head"><h2>清除请求三态</h2><span class="panel__meta">待处理 / 隔离留存 / 已清除</span></div>
+    <div class="panel__body panel__body--scroll">
+      <table class="ledger"><thead><tr><th>请求</th><th>行程号</th><th>状态</th><th>阶段</th><th class="num">已扣减航段</th></tr></thead>
+      <tbody id="request-rows">
+      {% for r in rows.snapshot.requests %}
+        <tr data-request="{{ r.request_id }}"><td>{{ r.request_id }}</td>
+        <td>{{ r.external_id if r.external_id else "—（已清除）" }}</td>
+        <td><span class="state state--{{ r.status|lower }}">{{ r.status }}</span></td>
+        <td>{{ r.stage }}</td><td class="num">{{ r.legs_removed }}</td></tr>
+      {% else %}
+        <tr><td colspan="5">暂无清除请求</td></tr>
+      {% endfor %}
+      </tbody></table>
+    </div>
   </section>
+
   <section class="panel panel--status">
-    <div class="panel__head"><h2>原因分布</h2><span class="panel__meta">3 类</span></div>
-    <div class="panel__body"><div class="bar"><i style="width:85%"></i></div><div class="legend"><span>采纳 1</span><span>隔离 3</span></div></div>
+    <div class="panel__head"><h2>证据与计数凭据（隔离库）</h2><span class="panel__meta">审计角色凭理由查阅</span></div>
+    <div class="panel__body">
+      <div class="evidence">
+        <label>当前角色
+          <select id="role-select">
+            <option value="operator">operator（普通角色）</option>
+            <option value="audit">audit（审计角色）</option>
+          </select>
+        </label>
+        <label>查阅理由（审计必填）<input id="audit-reason" placeholder="例如：争议工单 DISP-2026-018 复核"></label>
+        <div class="evidence__actions">
+          <button class="btn" id="btn-evidence" type="button">查阅隔离留存证据</button>
+          <button class="btn" id="btn-credentials" type="button">查看计数凭据（无行程号）</button>
+        </div>
+        <div id="evidence-feedback" class="evidence__hint">普通角色越权访问将被拒绝并写入审计日志</div>
+      </div>
+      <pre id="result">等待运行</pre>
+    </div>
   </section>
 </div>
 {% endblock %}
-
+{% block scripts %}<script src="/static/batches.js"></script>{% endblock %}

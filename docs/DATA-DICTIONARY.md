@@ -10,4 +10,10 @@
 - 时间：存储为带偏移的 ISO 8601，分桶使用半开区间。
 - 空值：缺失键、空串和业务哨兵分别记录。
 - 幂等：完整输入字节与规则版本相同则复用 run_id，不新增结果。
+- external_id：外部行程号，始终按字符串保形（TRAP-09）；获准清除后业务库不再保留明文。
+- external_id_hash：外部行程号的加盐 SHA-256，墓碑与去重只使用哈希，不可还原明文。
+- clearance 状态：PENDING 待处理 / RETAINED 隔离留存（争议航链原件在证据库）/ CLEARED 已清除。
+- hold_id：证据库留存原件的随机标识，业务库只存该标识而不存行程号。
+- 计数凭据：request_id、hold_id、leg_count、quarantine_count、reason_code 与时间戳，不含任何行程号字段。
+- 证据库：独立 SQLite 文件（EVIDENCE_DATABASE_PATH），与业务库物理隔离；审计访问需角色 audit 与查阅理由。
 

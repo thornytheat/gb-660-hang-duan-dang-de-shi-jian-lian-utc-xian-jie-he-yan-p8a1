@@ -13,7 +13,7 @@
 | M3 当地时刻 | 解析偏移、重叠与跳时 | POST /api/local-time/resolve | `app/modules/m3_localtime/resolve.py` `app/modules/m3_localtime/evidence.py` | `tests/test_m3_localtime.py` |
 | M4 UTC 航链 | 换算航段并校验先后顺序 | POST /api/itineraries/build | `app/modules/m4_itinerary/builder.py` `app/modules/m4_itinerary/validate.py` | `tests/test_m4_itinerary.py` |
 | M5 衔接判定 | 核对航站楼换乘与等待 | POST /api/connections/check | `app/modules/m5_connections/rules.py` `app/modules/m5_connections/windows.py` | `tests/test_m5_connections.py` |
-| M6 批次导出 | 核对航段守恒并导出时刻 | POST /api/reconcile | `app/modules/m6_batches/compare.py` `app/modules/m6_batches/exporter.py` | `tests/test_m6_batches.py` |
+| M6 批次导出 | 核对航段守恒并导出时刻；外部行程号清除与证据隔离 | POST /api/reconcile `/api/clearance` `/api/evidence` | `app/modules/m6_batches/pipeline.py` `app/modules/m6_batches/ledger.py` `app/modules/m6_batches/vault.py` `app/modules/m6_batches/compare.py` `app/modules/m6_batches/exporter.py` | `tests/test_m6_batches.py` `tests/test_m6_clearance.py` |
 
 ## 陷阱登记
 
@@ -35,6 +35,14 @@
 - 输入航段 = 有效航段 + 冲突航段 + 隔离航段。
 - 行程航段 = 可衔接航段 + 不可衔接航段。
 - 到达 UTC 必须晚于起飞 UTC，飞行时长不得超过 18 小时。
+
+## 外部行程号清除与证据隔离
+
+- 清除请求三态：PENDING（待处理）、RETAINED（涉争议，证据隔离留存）、CLEARED（已清除）。
+- 业务库与证据库分库：原件只进证据库；墓碑只存加盐哈希，计数凭据不含行程号。
+- 管线阶段：CREATED → EVIDENCE → BUSINESS_DELETE → CREDENTIAL → TOMBSTONE → DONE，断点续跑、重试不重复扣减。
+- 证据访问 RBAC：`X-Role: audit` + `X-Audit-Reason` 同时满足才放行，拒绝也写审计日志。
+- 清除覆盖同一外部行程号的所有批次；旧导出口径与重跑批次均不复活已清除行程。
 
 ## 已知不覆盖
 
